@@ -62,7 +62,8 @@ Advanced options:
   --decrypt-gid=hexdata\t\tAES decrypt with GID key
   --encrypt-gid=hexdata\t\tAES encrypt with GID key
   --decrypt-uid=hexdata\t\tAES decrypt with UID key
-  --encrypt-uid=hexdata\t\tAES encrypt with UID key"""
+  --encrypt-uid=hexdata\t\tAES encrypt with UID key
+  --set-generator=hexdata\t\tSet device generator"""
     )
 
 
@@ -90,7 +91,8 @@ def main():
     parser.add_argument("--decrypt-gid", dest="decrypt_gid")
     parser.add_argument("--encrypt-gid", dest="encrypt_gid")
     parser.add_argument("--decrypt-uid", dest="decrypt_uid")
-    parser.add_argument("--encrypt_uid", dest="encrypt_uid")
+    parser.add_argument("--encrypt-uid", dest="encrypt_uid")
+    parser.add_argument("--set-generator", dest="set_generator")
 
     # remap argparse's internally generated help function to our nicely formatted one.
     parser.print_help = print_help
@@ -163,6 +165,9 @@ def main():
 
     elif args.encrypt_uid:
         encrypt_uid(device, args.encrypt_uid)
+
+    elif args.set_generator:
+        set_generator(device, args.set_generator)
 
     else:
         print_help()
@@ -484,6 +489,25 @@ def encrypt_uid(device, arg):
         device = PwnedDFUDevice()
         print("Encrypting with device-specific UID key.")
         print(device.aes_hex(arg, AES_ENCRYPT, AES_UID_KEY))
+
+def set_generator(device, arg):
+    """Set device generator for usage in restores"""
+
+    if not device:
+        device = dfu.acquire_device()
+
+    serial_number = device.serial_number
+    dfu.release_device(device)
+
+    if serial_number.pwned:
+        pwned = usbexec.PwnedUSBDevice()
+        generator = pwned.read_memory_uint64(pwned.platform.generator_addr)
+        print(f"Current generator: {hex(generator)}")
+        pwned.write_memory_uint64(pwned.platform.generator_addr, int(arg, base=16))
+        generator = pwned.read_memory_uint64(pwned.platform.generator_addr)
+        print(f"New generator: {hex(generator)}")
+    else:
+        print("Device not in pwndfu mode!")
 
 
 def list_devices():
